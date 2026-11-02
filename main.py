@@ -6,35 +6,32 @@ DOWNLOAD_STATES = {
     'audio only': '3'
 }
 
-def slice_playlist():
-    print('\nEnter older entry as start and newer entry as end.')
-    print('Entries are new or old based on when you added them to the playlist.\n')
-    start = input('Enter the url of the entry you want to start the download with: ')
-    end = input('Enter the url of the entry you want to end the download with: ')
-    return (start, end)
+def print_title_list(title_list):
+    print()
+    for i, title in enumerate(title_list):
+        print(f'{i + 1}. {title}')
+    print()
 
-def get_slice_url_list(playlist_slice, urls):
-    start_i, end_i = None, None
-    for i, url in enumerate(urls):
-        if url == playlist_slice[0]:
-            start_i = i
+def get_playlist_slice(want_full_download, title_list):
+    if want_full_download == 'N':
+        print_title_list(title_list)
+        start, end = float('inf'), float('inf')
+        while not 0 <= start < end <= len(title_list):
+            start, end = '', ''
+            while not start.isdigit() and not end.isdigit():
+                start = input('Enter the number of the entry you want to start the download with: ')
+                end = input('Enter the number of the entry you want to end the download with(inclusive): ')
+                if not start.isdigit() and not end.isdigit():
+                    print('Enter valid numbers.')
 
-        elif url == playlist_slice[1]:
-            end_i = i
+            start, end = int(start) - 1, int(end)
+            if not 0 <= start <= end <= len(title_list):
+                print('Provided index\\es out of range.')
 
-    if start_i == None:
-        print('Couldn\'t find slice start entry url.')
-        return None
-    
-    elif end_i == None:
-        print('Couldn\'t find slice end entry url.')
-        return None
-
-    elif start_i > end_i:
-        print('Your entered start entry come after end entry.')
-        return None
-
-    return urls[start_i : end_i + 1]
+    else:
+        start = 0
+        end = -1
+    return start, end
 
 def get_playlist_info(url):
     ydl_opts = {
@@ -52,9 +49,12 @@ def get_playlist_info(url):
 
     return info
 
-def download_playlist(info, save_file_path, download_state, playlist_slice):
+def download_playlist(save_file_path, download_state, urls):
     ydl_opts = {
-        'outtmpl': None, # Directory\Name set dynamically before downloading.
+        'paths': {
+            'home': save_file_path,
+        },
+        'outtmpl': '%(title)s.%(ext)s', # Format for setting file name.
 
         # Sleep options to prevent rate-limit soft ban.
         'sleep_interval': 3,
@@ -85,41 +85,55 @@ def download_playlist(info, save_file_path, download_state, playlist_slice):
             }],
         })
 
-    # Downloading entries inside of playlist.
-    urls = [entry_info['url'] for entry_info in info['entries']]
-    slice_urls = get_slice_url_list(playlist_slice, urls)
-    if not slice_urls: return
+    # Download using ydl_opts configuration.
+    continue_downloading = 'Y'
+    while continue_downloading == 'Y':
+        with YoutubeDL(ydl_opts) as ydl:
+            try:
+                for i, url in enumerate(urls):
+                    ydl.download(url)
 
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl_opts['outtmpl'] = save_file_path + '/' + '%(title)s.%(ext)s'
-        ydl.download(slice_urls)
+                continue_downloading = 'N'
+                break
+
+            except Exception:
+                if i == len(urls) - 1:
+                    print('Last entry download error.')
+                    continue_downloading = 'N'
+                    break
+
+                continue_downloading = None
+                while continue_downloading not in ('Y', 'N'):
+                    continue_downloading = input('\nDo you want to continue downloading the remaining entries? (Y\\N): ').upper()
+                    if continue_downloading == 'Y':
+                        urls = urls[i + 1:]
 
 def main():
-    url = input('Enter url to playlist for download: ')
+    playlist_url = input('Enter url to playlist for download: ')
     save_file_path = input('Enter file path to save in: ')
 
     download_state = None
     while download_state not in ('1', '2', '3'):
         download_state = input('Download video & audio(1), video only(2), audio only(3): ')
 
-    # Get the url of start and end entries if user wants to download a slice of the playlist.
-    playlist_slicing = None
-    while playlist_slicing not in ('Y', 'N'):
-        playlist_slicing = input('Do you want to download the entire playlist? Yes(Y)/No(N): ').upper()
-
-    if playlist_slicing == 'N':
-        playlist_slice = slice_playlist()
-    else:
-        playlist_slice = None
-
     print('Extracting playlist information.')
-    playlist_info = get_playlist_info(url)
+    playlist_info = get_playlist_info(playlist_url)
     if not playlist_info['entries']:
         print('Playlist has no videos or provided link isn\'t of playlist.')
         return
 
-    save_file_path = save_file_path + '/' + playlist_info['title'] # Downloading inside a folder named the title of the playlist.
-    download_playlist(playlist_info, save_file_path, download_state, playlist_slice)
+    # Get the slice indexes of the playlist that user wants to download.
+    want_full_download = None
+    while want_full_download not in ('Y', 'N'):
+        want_full_download = input('Do you want to download the entire playlist? Yes(Y)/No(N): ').upper()
+
+    title_list = [entry['title'] for entry in playlist_info['entries']]
+    start, end = get_playlist_slice(want_full_download, title_list)
+
+    # Downloading inside a folder named the title of the playlist.
+    url_list = [entry['url'] for entry in playlist_info['entries']] # Sort url_list from oldest to newest.
+    save_file_path = save_file_path + '\\' + playlist_info['title']
+    download_playlist(save_file_path, download_state, url_list[start:end])
 
 if __name__ == '__main__':
     main()
