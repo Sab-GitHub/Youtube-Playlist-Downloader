@@ -18,10 +18,10 @@ def get_playlist_slice(want_full_download, title_list):
         start, end = float('inf'), float('inf')
         while not 0 <= start < end <= len(title_list):
             start, end = '', ''
-            while not start.isdigit() and not end.isdigit():
+            while not start.isdigit() or not end.isdigit():
                 start = input('Enter the number of the entry you want to start the download with: ')
                 end = input('Enter the number of the entry you want to end the download with(inclusive): ')
-                if not start.isdigit() and not end.isdigit():
+                if not start.isdigit() or not end.isdigit():
                     print('Enter valid numbers.')
 
             start, end = int(start) - 1, int(end)
@@ -30,7 +30,7 @@ def get_playlist_slice(want_full_download, title_list):
 
     else:
         start = 0
-        end = -1
+        end = len(title_list)
     return start, end
 
 def get_playlist_info(url):
@@ -72,7 +72,7 @@ def download_playlist(save_file_path, download_state, urls):
 
     elif download_state == DOWNLOAD_STATES['video only']:
         ydl_opts.update({
-            'format': 'bestvideo[ext=mp4]/best', # Download highest quality mp4 video. If not available download best alternative.
+            'format': 'bestvideo[ext=mp4]/bestvideo', # Download highest quality mp4 video. If not available download best alternative.
             'merge_output_format': 'mp4',
         })
 
@@ -131,7 +131,7 @@ def main():
     start, end = get_playlist_slice(want_full_download, title_list)
 
     # Downloading inside a folder named the title of the playlist.
-    url_list = [entry['url'] for entry in playlist_info['entries']] # Sort url_list from oldest to newest.
+    url_list = [entry['url'] for entry in playlist_info['entries']]
     save_file_path = save_file_path + '\\' + playlist_info['title']
     download_playlist(save_file_path, download_state, url_list[start:end])
 
